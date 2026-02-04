@@ -1,0 +1,105 @@
+# ===============================================
+# .gitignore - TFM Proyecto Universidad
+# ===============================================
+# Excluye archivos innecesarios para la entrega
+# ===============================================
+
+# ============ Python ============
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyc
+*.pyo
+.Python
+
+# Distribución / Packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ============ Entornos Virtuales ============
+venv/
+ENV/
+env/
+.venv
+.conda/
+
+# ============ IDEs ============
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============ Jupyter Notebooks ============
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# ============ Sistema Operativo ============
+.DS_Store
+Thumbs.db
+desktop.ini
+__MACOSX/
+
+# ============ Logs y Temporales ============
+*.log
+execution.log
+output.log
+training_output.txt
+full_output.txt
+*.tmp
+
+# ============ TensorFlow / Keras ============
+logs/
+*.h5
+*.pb
+saved_models/
+checkpoints/
+.tensorflow/
+
+# ============ Datos Pesados (Opcional) ============
+# Descomentar si los datasets son muy grandes
+# data_ecg/*.txt
+# data_har/**/*.txt
+# TFM_Fase2/data_ecg/*.txt
+# TFM_Fase2/data_har/**/*.txt
+
+# ============ Resultados Generados ============
+# Descomentar si NO quieres subir resultados
+# csv_data/*.csv
+# results/*.png
+# TFM_Fase1/csv_data/*.csv
+# TFM_Fase1/results/*.png
+# TFM_Fase2/csv_data/*.csv
+# TFM_Fase2/results/*.png
+# TFM_Fase2/graphs/
+
+# ============ Modelos Entrenados ============
+# Descomentar si los modelos son muy grandes
+# models/
+# TFM_Fase2/models/
+
+# ============ Archivos de Configuración Personales ============
+# Documentos de proceso (no necesarios para entrega final)
+PROYECTO_ORGANIZADO.md
+PROYECTO_LISTO_PARA_GIT.md
+PRUEBA_RAPIDA.md
+README_MEJORAS.md
+
+# ============ Git ============
+.git/
+*.orig

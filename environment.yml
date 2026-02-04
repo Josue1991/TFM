@@ -1,0 +1,22 @@
+name: tfm_proyecto
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip>=23.0
+  - pip:
+      # Core ML Framework
+      - tensorflow==2.13.0
+      
+      # Data Processing
+      - numpy==1.24.3
+      - pandas==2.0.3
+      - scikit-learn==1.3.0
+      
+      # Visualization
+      - matplotlib==3.7.2
+      - Pillow==10.0.0
+      
+      # Optional: GPU monitoring (solo con NVIDIA GPU)
+      # - nvidia-ml-py3

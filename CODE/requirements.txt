@@ -1,18 +1,22 @@
-# TFM Project - Centralized Virtual Environment Requirements
-# Python 3.11+
-# Location: C:\Proyectos\TFM_Proyecto\venv (shared across all phases)
+# ===============================================
+# TFM - REQUIREMENTS CENTRALIZADOS
+# ===============================================
+# Python 3.11+ requerido
+# Usar con: pip install -r requirements.txt
+# O con conda: conda env create -f environment.yml
+# ===============================================
 
 # Core ML Framework
 tensorflow==2.13.0
 
 # Data Processing
-numpy>=1.22,<=1.24.3
-pandas>=1.5.0
-scikit-learn>=1.3.0
+numpy==1.24.3
+pandas==2.0.3
+scikit-learn==1.3.0
 
 # Visualization
-matplotlib>=3.7.0
-Pillow>=9.5.0
+matplotlib==3.7.2
+Pillow==10.0.0
 
-# Optional (not needed for basic training)
-# nvidia-ml-py3  # For GPU monitoring (only on Windows with NVIDIA driver)
+# Optional: GPU monitoring (solo con NVIDIA GPU)
+# nvidia-ml-py3
