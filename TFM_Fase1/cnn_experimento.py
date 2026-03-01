@@ -11,10 +11,20 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import sys
 import numpy as np
 from tensorflow.keras import layers, models, callbacks, optimizers
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from cnn_modelo import train_and_measure
+
+# Importar utilidades de benchmarking (si están disponibles)
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'CODE', 'utils'))
+    from benchmark_utils import get_device_info, enrich_results, print_device_summary, save_enriched_results
+    BENCHMARK_AVAILABLE = True
+except ImportError:
+    BENCHMARK_AVAILABLE = False
+    print("[INFO] benchmark_utils no disponible. Solo se guardarán resultados básicos.")
 
 # =====================================
 # CONFIGURACIÓN GLOBAL - CAMBIAR AQUÍ
@@ -22,8 +32,8 @@ from cnn_modelo import train_and_measure
 # Para testing rápido: epochs=2 (3-5 minutos)
 # Para resultados: epochs=10 (15-20 minutos)
 # Para óptimos: epochs=20+ (30+ minutos)
-EPOCHS_Fashion = 10    # Epochs para Fashion MNIST
-EPOCHS_CIFAR10 = 10    # Epochs para CIFAR-10
+EPOCHS_Fashion = 20   # Epochs para Fashion MNIST (coincide con Colab)
+EPOCHS_CIFAR10 = 30   # Epochs para CIFAR-10 (coincide con Colab)
 BATCH_SIZE = 32        # Tamaño de lote
 DEVICE = 'auto'        # 'GPU', 'CPU', o 'auto'
 
@@ -39,10 +49,17 @@ if not os.path.exists(CSV_DIR):
     os.makedirs(CSV_DIR)
 
 # =====================================
-# DETECTAR CPU O GPU
+# DETECTAR CPU O GPU Y CAPTURAR INFO
 # =====================================
 device_name = "GPU" if tf.config.list_physical_devices('GPU') else "CPU"
 print(f"Entrenando usando: {device_name}")
+
+# Capturar información detallada del sistema
+if BENCHMARK_AVAILABLE:
+    device_info = get_device_info()
+    print_device_summary(device_info)
+else:
+    device_info = None
 
 
 def load_and_preprocess_dataset(dataset_name, img_size):
@@ -87,12 +104,16 @@ def load_and_preprocess_dataset(dataset_name, img_size):
         x_train = np.expand_dims(x_train, -1)
         x_test = np.expand_dims(x_test, -1)
     
-    # Redimensionar usando tf.image.resize
+    # Redimensionar usando tf.image.resize (optimizado para memoria)
     def resize_batch(x, target_size):
-        """Redimensionar batch de imágenes."""
-        x_resized = np.zeros((x.shape[0], target_size[0], target_size[1], x.shape[-1]))
-        for i in range(len(x)):
-            x_resized[i] = tf.image.resize(x[i:i+1], target_size).numpy()
+        """Redimensionar batch de imágenes usando float32 para ahorrar memoria."""
+        # Usar float32 en lugar de float64 para reducir uso de memoria a la mitad
+        x_resized = np.zeros((x.shape[0], target_size[0], target_size[1], x.shape[-1]), dtype=np.float32)
+        # Procesar en batches más pequeños para evitar picos de memoria
+        batch_size = 1000
+        for i in range(0, len(x), batch_size):
+            end_idx = min(i + batch_size, len(x))
+            x_resized[i:end_idx] = tf.image.resize(x[i:end_idx], target_size).numpy().astype(np.float32)
         return x_resized
     
     x_train = resize_batch(x_train, img_size)
@@ -186,26 +207,58 @@ print("INICIANDO EXPERIMENTOS CNN")
 print("="*60)
 
 results = []
+enriched_results = []
 
 # Dataset 1 — Fashion MNIST (28x28 → escalado a 64x64)
+# COMENTADO TEMPORALMENTE - Ya completado exitosamente (82.4% accuracy)
+# Se ejecutará solo CIFAR-10 para corregir error de memoria
+"""
 print("\n--- Experimento 1: Fashion MNIST ---")
 ds_train_1, ds_val_1, ds_test_1, num_classes_1 = load_and_preprocess_dataset(
     "fashion_mnist", (64, 64)
 )
-r1, h1 = train_and_measure(
+r1, h1, model1 = train_and_measure(
     "Fashion MNIST", (64, 64), ds_train_1, ds_val_1, ds_test_1, num_classes_1, EPOCHS_Fashion
 )
 results.append(r1)
+
+# Enriquecer resultados con información detallada
+if BENCHMARK_AVAILABLE and device_info:
+    enriched_r1 = enrich_results(
+        base_results=r1,
+        history=h1,
+        model=model1,
+        device_info=device_info,
+        dataset_size_train=48000,  # Fashion MNIST train size
+        dataset_size_test=10000
+    )
+    enriched_results.append(enriched_r1)
+"""
 
 # Dataset 2 — CIFAR-10 (escalado a 64x64)
 print("\n--- Experimento 2: CIFAR-10 ---")
 ds_train_2, ds_val_2, ds_test_2, num_classes_2 = load_and_preprocess_dataset(
     "cifar10", (64, 64)
 )
-r2, h2 = train_and_measure(
+r2, h2, model2 = train_and_measure(
     "CIFAR-10", (64, 64), ds_train_2, ds_val_2, ds_test_2, num_classes_2, EPOCHS_CIFAR10
 )
 results.append(r2)
+
+# Enriquecer resultados con información detallada
+if BENCHMARK_AVAILABLE and device_info:
+    # No usar baseline_time cruzado entre datasets diferentes
+    # El speedup solo tiene sentido comparando el MISMO dataset en CPU vs GPU
+    enriched_r2 = enrich_results(
+        base_results=r2,
+        history=h2,
+        model=model2,
+        device_info=device_info,
+        baseline_time=None,  # Speedup solo para comparar mismo dataset CPU vs GPU
+        dataset_size_train=40000,  # CIFAR-10 train size (80% of 50000)
+        dataset_size_test=10000
+    )
+    enriched_results.append(enriched_r2)
 
 # =====================================
 # GUARDAR Y PROCESAR RESULTADOS
@@ -217,11 +270,22 @@ print("="*60)
 df = pd.DataFrame(results)
 csv_path = os.path.join(CSV_DIR, "resultados_fase1.csv")
 df.to_csv(csv_path, index=False)
-print(f"\n✓ Resultados guardados en: {csv_path}")
+print(f"\n✓ Resultados básicos guardados en: {csv_path}")
 
-# Mostrar tabla de resultados
-print("\nTabla de Resultados:")
-print(df.to_string(index=False))
+# Guardar resultados enriquecidos (si está disponible)
+if BENCHMARK_AVAILABLE and enriched_results:
+    csv_enriched_path = os.path.join(CSV_DIR, "resultados_fase1_detallado.csv")
+    df_enriched = save_enriched_results(enriched_results, csv_enriched_path)
+    print(f"✓ Resultados detallados guardados en: {csv_enriched_path}")
+    print("\nTabla de Resultados Detallados:")
+    # Mostrar solo columnas clave
+    display_cols = ['dataset', 'device_type', 'accuracy', 'training_time', 
+                    'time_per_epoch', 'samples_per_second', 'total_parameters']
+    display_cols = [c for c in display_cols if c in df_enriched.columns]
+    print(df_enriched[display_cols].to_string(index=False))
+else:
+    print("\nTabla de Resultados:")
+    print(df.to_string(index=False))
 
 # =====================================
 # GENERAR GRÁFICOS

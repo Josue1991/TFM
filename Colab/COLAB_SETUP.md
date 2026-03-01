@@ -1,5 +1,22 @@
 # 🚀 Usar TFM con Google Colab GPU
 
+## 📋 Notebooks Disponibles
+
+### ⭐ **RECOMENDADO: TFM_Colab_Completo_Benchmarking.ipynb**
+- ✅ **Fase 1 (CNN):** Fashion MNIST + CIFAR-10  
+- ✅ **Fase 2 (LSTM):** ECG5000 + UCI HAR  
+- ✅ **Benchmarking:** 26 métricas detalladas  
+- ✅ **CSV completo** para comparativas CPU/GPU/Multi-GPU  
+- ⏱️ **Tiempo:** 25-45 minutos
+
+### Otros notebooks disponibles:
+- **TFM_Colab_GPU.ipynb** - Versión optimizada sin benchmarking
+- **TFM_Colab_Simple.ipynb** - Versión básica educativa
+
+📚 **Ver comparativa completa:** [README_NOTEBOOKS.md](README_NOTEBOOKS.md)
+
+---
+
 ## ¿Por qué Google Colab?
 
 - ✅ GPU **GRATIS** (Tesla K80, T4, A100)
@@ -34,9 +51,13 @@ Debe ver: `⚡ GPU enabled` en verde
 
 ### 4. Copiar Código del Notebook
 
-Copiar contenido de `TFM_Colab_GPU.ipynb` a Colab celda por celda
+**Opción A (Recomendada):** Upload del notebook completo
+- **File → Upload Notebook**
+- Seleccionar: `TFM_Colab_Completo_Benchmarking.ipynb`
 
-O usar opción: **File → Upload Notebook** → seleccionar `TFM_Colab_GPU.ipynb`
+**Opción B:** Otros notebooks
+- `TFM_Colab_GPU.ipynb` - Sin benchmarking
+- `TFM_Colab_Simple.ipynb` - Versión básica
 
 ### 5. Ejecutar
 

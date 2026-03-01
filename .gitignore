@@ -79,14 +79,19 @@ checkpoints/
 # TFM_Fase2/data_har/**/*.txt
 
 # ============ Resultados Generados ============
-# Descomentar si NO quieres subir resultados
-# csv_data/*.csv
-# results/*.png
-# TFM_Fase1/csv_data/*.csv
-# TFM_Fase1/results/*.png
-# TFM_Fase2/csv_data/*.csv
-# TFM_Fase2/results/*.png
-# TFM_Fase2/graphs/
+# Excluir resultados de experimentos
+csv_data/*.csv
+results/*.png
+TFM_Fase1/csv_data/*.csv
+TFM_Fase1/results/*.png
+TFM_Fase2/csv_data/*.csv
+TFM_Fase2/results/*.png
+TFM_Fase2/graphs/*.png
+comparativas/*.csv
+comparativas/*.png
+Colab/*.csv
+Colab/*.png
+Colab/test_*.py
 
 # ============ Modelos Entrenados ============
 # Descomentar si los modelos son muy grandes
@@ -99,6 +104,15 @@ PROYECTO_ORGANIZADO.md
 PROYECTO_LISTO_PARA_GIT.md
 PRUEBA_RAPIDA.md
 README_MEJORAS.md
+BENCHMARKING_INSTALADO.md
+EJECUTAR_EXPERIMENTOS.md
+GUIA_BENCHMARKING.md
+CODE/README.md
+Colab/README_BENCHMARKING.md
+Colab/README_NOTEBOOKS.md
+demo_benchmarking.py
+verificar_instalacion.py
+comparativas/generar_graficas_cpu_vs_gpu.py
 
 # ============ Git ============
 .git/

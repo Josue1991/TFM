@@ -30,13 +30,22 @@ import tensorflow as tf
 from tensorflow.keras import layers, models, callbacks, optimizers
 from tensorflow.keras.regularizers import l2
 
+# Importar utilidades de benchmarking (si están disponibles)
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'CODE', 'utils'))
+    from benchmark_utils import get_device_info, enrich_results, print_device_summary, save_enriched_results
+    BENCHMARK_AVAILABLE = True
+except ImportError:
+    BENCHMARK_AVAILABLE = False
+    print("[INFO] benchmark_utils no disponible. Solo se guardarán resultados básicos.")
+
 # ============================================================
 # CONFIGURACIÓN GLOBAL
 # ============================================================
 
 # CAMBIAR ESTOS VALORES SEGÚN TUS NECESIDADES
-EPOCHS_ECG = 2      # Epochs para ECG5000 (cambiar aquí)
-EPOCHS_HAR = 2      # Epochs para UCI HAR (cambiar aquí)
+EPOCHS_ECG = 30     # Epochs para ECG5000 (coincide con Colab)
+EPOCHS_HAR = 30     # Epochs para UCI HAR (coincide con Colab)
 BATCH_SIZE = 32      # Tamaño de lote
 DEVICE = 'auto'      # 'GPU', 'CPU', o 'auto'
 
@@ -68,6 +77,13 @@ def setup_device():
     return device_type
 
 device_type = setup_device()
+
+# Capturar información detallada del sistema
+if BENCHMARK_AVAILABLE:
+    device_info = get_device_info()
+    print_device_summary(device_info)
+else:
+    device_info = None
 
 # ============================================================
 # CONSTRUCCIÓN DE MODELO LSTM
@@ -245,48 +261,96 @@ def train_lstm_optimized(model, X_train, y_train, X_val, y_val, X_test, y_test,
         'epochs_executed': len(history.history['loss'])
     }
     
-    return results, history
+    return results, history, model
 
 # ============================================================
 # CARGAR Y PREPARAR DATASETS
 # ============================================================
 def load_ecg5000():
-    """Cargar ECG5000 desde UCR."""
-    print("\n[LOAD] Descargando ECG5000...")
+    """Cargar ECG5000 desde archivos locales."""
+    print("\n[LOAD] Cargando ECG5000 desde archivos locales...")
     
-    from tensorflow.keras.datasets import cifar10
-    # Simulación: usar datos sintéticos por ahora
-    # En producción, descargar desde: http://www.cs.ucr.edu/~eamonn/time_series_data_2018/
+    data_dir = os.path.join(os.path.dirname(__file__), 'data_ecg')
+    train_path = os.path.join(data_dir, 'ECG5000_TRAIN.txt')
+    test_path = os.path.join(data_dir, 'ECG5000_TEST.txt')
     
-    # Para testing: generar datos sintéticos
-    print("  (Generando datos sintéticos para demostración)")
-    X = np.random.randn(5000, 140, 1)  # 5000 muestras, 140 timesteps
-    y = np.random.randint(0, 5, 5000)  # 5 clases
+    # Cargar datos (formato UCR: primera columna = label, resto = datos)
+    train_data = np.loadtxt(train_path)
+    test_data = np.loadtxt(test_path)
     
-    # Normalizar
-    X = (X - X.mean()) / X.std()
-    
-    return train_test_split(X, y, test_size=0.2, random_state=42)
-
-def load_uci_har():
-    """Cargar UCI HAR desde repositorio."""
-    print("\n[LOAD] Descargando UCI HAR...")
-    
-    # Para testing: generar datos sintéticos
-    print("  (Generando datos sintéticos para demostración)")
-    X = np.random.randn(10299, 561)  # 10299 muestras, 561 features
-    y = np.random.randint(0, 6, 10299)  # 6 clases
-    
-    # Convertir a temporal (necesario para LSTM)
-    X = X.reshape(X.shape[0], 1, X.shape[1])  # (N, timesteps=1, features=561)
+    X_train = train_data[:, 1:]  # Todas las columnas excepto la primera
+    y_train = train_data[:, 0].astype(int) - 1  # Primera columna (labels empiezan en 1)
+    X_test = test_data[:, 1:]
+    y_test = test_data[:, 0].astype(int) - 1
     
     # Normalizar
     scaler = StandardScaler()
-    X_reshaped = X.reshape(X.shape[0], -1)
-    X_reshaped = scaler.fit_transform(X_reshaped)
-    X = X_reshaped.reshape(X.shape[0], 1, -1)
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
     
-    return train_test_split(X, y, test_size=0.2, random_state=42)
+    # Reshape para LSTM: (samples, timesteps, features)
+    X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
+    X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
+    
+    print(f"  ✓ Train: {X_train.shape}, Test: {X_test.shape}")
+    print(f"  ✓ Clases: {len(np.unique(y_train))}")
+    
+    # Crear split de validación desde entrenamiento
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train, y_train, test_size=0.2, random_state=42
+    )
+    
+    return X_train, X_test, y_train, y_test, X_val, y_val
+
+def load_uci_har():
+    """Cargar UCI HAR desde señales inerciales (9 sensores x 128 timesteps)."""
+    print("\n[LOAD] Cargando UCI HAR desde señales inerciales...")
+    
+    data_dir = os.path.join(os.path.dirname(__file__), 'data_har')
+    
+    # 9 señales de sensores
+    signals = [
+        "total_acc_x", "total_acc_y", "total_acc_z",
+        "body_acc_x", "body_acc_y", "body_acc_z",
+        "body_gyro_x", "body_gyro_y", "body_gyro_z"
+    ]
+    
+    def load_signals(split):
+        data = []
+        for sig in signals:
+            path = os.path.join(data_dir, split, "Inertial Signals", f"{sig}_{split}.txt")
+            data.append(np.loadtxt(path))
+        # Transponer: (samples, timesteps, features)
+        return np.transpose(np.array(data), (1, 2, 0))
+    
+    # Cargar train y test
+    X_train = load_signals("train")
+    X_test = load_signals("test")
+    
+    # Cargar labels (1-6, convertir a 0-5)
+    y_train = np.loadtxt(os.path.join(data_dir, "train", "y_train.txt")).astype(int) - 1
+    y_test = np.loadtxt(os.path.join(data_dir, "test", "y_test.txt")).astype(int) - 1
+    
+    # Normalizar
+    scaler = StandardScaler()
+    X_train_reshaped = X_train.reshape(-1, X_train.shape[-1])
+    X_test_reshaped = X_test.reshape(-1, X_test.shape[-1])
+    
+    X_train_reshaped = scaler.fit_transform(X_train_reshaped)
+    X_test_reshaped = scaler.transform(X_test_reshaped)
+    
+    X_train = X_train_reshaped.reshape(X_train.shape)
+    X_test = X_test_reshaped.reshape(X_test.shape)
+    
+    print(f"  ✓ Train: {X_train.shape}, Test: {X_test.shape}")
+    print(f"  ✓ Clases: {len(np.unique(y_train))}")
+    
+    # Crear split de validación desde entrenamiento
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train, y_train, test_size=0.2, random_state=42
+    )
+    
+    return X_train, X_test, y_train, y_test, X_val, y_val
 
 # ============================================================
 # MAIN
@@ -303,6 +367,7 @@ def main():
     print("="*70)
     
     results_list = []
+    enriched_results = []
     histories = {}
     
     # ========== EXPERIMENTO 1: ECG5000 ==========
@@ -310,10 +375,7 @@ def main():
     print("EXPERIMENTO 1: ECG5000")
     print("█"*70)
     
-    X_train_ecg, X_test_ecg, y_train_ecg, y_test_ecg = load_ecg5000()
-    X_train_ecg, X_val_ecg, y_train_ecg, y_val_ecg = train_test_split(
-        X_train_ecg, y_train_ecg, test_size=0.2, random_state=42
-    )
+    X_train_ecg, X_test_ecg, y_train_ecg, y_test_ecg, X_val_ecg, y_val_ecg = load_ecg5000()
     
     model_ecg = build_lstm_model(
         input_shape=(X_train_ecg.shape[1], X_train_ecg.shape[2]),
@@ -321,7 +383,7 @@ def main():
         model_name='LSTM-ECG5000'
     )
     
-    results_ecg, history_ecg = train_lstm_optimized(
+    results_ecg, history_ecg, model_ecg = train_lstm_optimized(
         model_ecg,
         X_train_ecg, y_train_ecg,
         X_val_ecg, y_val_ecg,
@@ -334,15 +396,24 @@ def main():
     results_list.append(results_ecg)
     histories['ECG5000'] = history_ecg
     
+    # Enriquecer resultados con información detallada
+    if BENCHMARK_AVAILABLE and device_info:
+        enriched_ecg = enrich_results(
+            base_results=results_ecg,
+            history=history_ecg,
+            model=model_ecg,
+            device_info=device_info,
+            dataset_size_train=len(X_train_ecg),
+            dataset_size_test=len(X_test_ecg)
+        )
+        enriched_results.append(enriched_ecg)
+    
     # ========== EXPERIMENTO 2: UCI HAR ==========
     print("\n" + "█"*70)
     print("EXPERIMENTO 2: UCI HAR")
     print("█"*70)
     
-    X_train_har, X_test_har, y_train_har, y_test_har = load_uci_har()
-    X_train_har, X_val_har, y_train_har, y_val_har = train_test_split(
-        X_train_har, y_train_har, test_size=0.2, random_state=42
-    )
+    X_train_har, X_test_har, y_train_har, y_test_har, X_val_har, y_val_har = load_uci_har()
     
     model_har = build_lstm_model(
         input_shape=(X_train_har.shape[1], X_train_har.shape[2]),
@@ -350,7 +421,7 @@ def main():
         model_name='LSTM-UCI HAR'
     )
     
-    results_har, history_har = train_lstm_optimized(
+    results_har, history_har, model_har = train_lstm_optimized(
         model_har,
         X_train_har, y_train_har,
         X_val_har, y_val_har,
@@ -362,6 +433,21 @@ def main():
     
     results_list.append(results_har)
     histories['UCI HAR'] = history_har
+    
+    # Enriquecer resultados con información detallada
+    if BENCHMARK_AVAILABLE and device_info:
+        # No usar baseline_time cruzado entre datasets diferentes
+        # El speedup solo tiene sentido comparando el MISMO dataset en CPU vs GPU
+        enriched_har = enrich_results(
+            base_results=results_har,
+            history=history_har,
+            model=model_har,
+            device_info=device_info,
+            baseline_time=None,  # Speedup solo para comparar mismo dataset CPU vs GPU
+            dataset_size_train=len(X_train_har),
+            dataset_size_test=len(X_test_har)
+        )
+        enriched_results.append(enriched_har)
     
     # ========== GUARDAR RESULTADOS ==========
     print("\n" + "="*70)
@@ -378,8 +464,21 @@ def main():
     # Guardar CSV
     csv_path = 'csv_data/fase2_completo.csv'
     df_results.to_csv(csv_path, index=False)
-    print(f"\n✓ Resultados guardados en: {csv_path}")
-    print(df_results)
+    print(f"\n✓ Resultados básicos guardados en: {csv_path}")
+    
+    # Guardar resultados enriquecidos (si está disponible)
+    if BENCHMARK_AVAILABLE and enriched_results:
+        csv_enriched_path = 'csv_data/fase2_completo_detallado.csv'
+        df_enriched = save_enriched_results(enriched_results, csv_enriched_path)
+        print(f"✓ Resultados detallados guardados en: {csv_enriched_path}")
+        print("\nTabla de Resultados Detallados:")
+        # Mostrar solo columnas clave
+        display_cols = ['dataset', 'device_type', 'accuracy', 'training_time', 
+                        'time_per_epoch', 'samples_per_second', 'total_parameters']
+        display_cols = [c for c in display_cols if c in df_enriched.columns]
+        print(df_enriched[display_cols].to_string(index=False))
+    else:
+        print(df_results)
     
     # Graficar historiales
     print(f"\n✓ Generando gráficas...")

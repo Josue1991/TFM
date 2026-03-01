@@ -17,9 +17,9 @@ Ver la raíz del repo. Cada fase tiene sus scripts y un sub-directorio `graphs/`
 
 ```powershell
 # Windows PowerShell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+1) python -m venv venv
+2) .\venv\Scripts\Activate.ps1
+3) pip install -r requirements.txt
 
 --Ejecucion
 # Comandos para ejecutar 
